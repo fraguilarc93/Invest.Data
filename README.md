@@ -167,9 +167,7 @@ Each semester a new Highlights edition is added. To add a new edition (e.g., `20
 
 ## Contributing
 
-This project is maintained by the **SME and Enterprise Development, Policy and Regulations unit**. For questions, issues, or contributions, contact the team through the [WKPTS Hub](https://worldbankgroup.sharepoint.com/sites/ICHUB) on SharePoint.
-
-**Training & Support:** Contact Arlan Brucal ([abrucal@worldbank.org](mailto:abrucal@worldbank.org)), Francisco Aguilar Cisneros ([faguilacisneros@worldbank.org](mailto:faguilacisneros@worldbank.org)), or Kanako Nannichi ([knannichi@worldbank.org](mailto:knannichi@worldbank.org))..
+This project is maintained by the **SME and Enterprise Development, Policy and Regulations unit**. For questions, issues, contributions, or training, contact Arlan Brucal ([abrucal@worldbank.org](mailto:abrucal@worldbank.org)), Francisco Aguilar Cisneros ([faguilacisneros@worldbank.org](mailto:faguilacisneros@worldbank.org)), or Kanako Nannichi ([knannichi@worldbank.org](mailto:knannichi@worldbank.org)).
 
 When modifying a panel, follow the existing architecture:
 - Keep the UI layout (`_ui()`) and reactive logic (`_server()`) for each panel together in its own dedicated file — for example, everything related to the Foreign Capital tab lives in `foreign_capital_panel.py`. Do not split a panel's code across multiple files.
