@@ -1,5 +1,7 @@
 # Shiny App for Investment and Policy Trends and Insights (Invest.Data)
-from shiny import App, Inputs, Outputs, Session, reactive, ui
+import os
+
+from shiny import App, Inputs, Outputs, Session, reactive, render, ui
 
 # Import panel UIs and servers
 from landing_panel import landing_ui, landing_server
@@ -10,6 +12,10 @@ from bilateral_trends_panel import bilateral_trends_ui, bilateral_trends_server
 from business_environment_panel import business_environment_ui, business_environment_server
 from linkages_panel import linkages_ui, linkages_server
 from about_panel import about_ui
+
+# Access password, read from an environment variable (set it in Posit Connect Cloud).
+# If it is not set, the app opens without asking for a password (useful for local testing).
+APP_PASSWORD = os.environ.get("APP_PASSWORD", None)
 
 # Define the UI layout
 app_ui = ui.page_fluid(
@@ -39,42 +45,8 @@ app_ui = ui.page_fluid(
         )
     ),
 
-    # Top tabs instead of sidebar buttons
-    ui.navset_tab(
-
-        # Landing Site
-        landing_ui(),
-
-        # Investment Highlights
-        highlights_ui(), 
-
-        # Foreign Capital
-        foreign_capital_ui(),
-
-        # FDI Trends
-        fdi_trends_ui(),
-        
-        # Bilateral Trends
-        bilateral_trends_ui(), 
-
-        # Business Environment
-        business_environment_ui(),
-
-        # Linkages
-        linkages_ui(),
-
-        # WB SME & Enterprise Development, Policy and Regulations Hub
-        ui.nav_panel(
-            "WKPTS Hub",
-            ui.HTML("<p>Redirecting…</p>"),  # never really shown
-            value="wb_hub",
-        ),
-
-        # About Panel
-        about_ui(),
-
-    id="main_tabs"
-    ),
+    # Main content is rendered only after successful login
+    ui.output_ui("main_content"),
 
     # Add JavaScript redirect script
     ui.tags.style("""
@@ -251,9 +223,26 @@ app_ui = ui.page_fluid(
 
     # Add this just once in your UI (outside or after the slider)
     ui.tags.script("""
-    document.addEventListener("DOMContentLoaded", function() {
-    const labels = document.querySelectorAll("#year_slider .irs-grid-text");
-    labels.forEach(l => l.textContent = l.textContent.replace(",", ""));
+    (function() {
+    function fixLabels() {
+        const labels = document.querySelectorAll("#year_slider .irs-grid-text");
+        labels.forEach(l => {
+        if (l.textContent.includes(",")) l.textContent = l.textContent.replace(",", "");
+        });
+    }
+    // Re-run when new content appears (the slider is rendered after login)
+    if (document.readyState !== 'loading') fixLabels();
+    else document.addEventListener('DOMContentLoaded', fixLabels);
+    new MutationObserver(fixLabels).observe(document.body, { childList: true, subtree: true });
+    })();
+    """),
+
+    # Submit login with the Enter key
+    ui.tags.script("""
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'pwd_input') {
+        document.getElementById('btn_login').click();
+      }
     });
     """),
 
@@ -312,7 +301,69 @@ def server(input: Inputs, output: Outputs, session: Session):
     linkages_server(input, output, session)
 
     ##################################
-    ## 0. Tutorial Modal
+    ## 0. Login
+    authenticated = reactive.value(False)
+
+    def login_modal(error: bool = False):
+        error_html = """
+            <p style="color:red; text-align:center; font-size:13px;">
+                ❌ Incorrect password. Please try again.
+            </p>
+        """ if error else ""
+        return ui.modal(
+            ui.HTML("""
+                <div style="text-align:center; margin-bottom:20px;">
+                    <h2 style="font-size:26px; font-weight:700; color:#0a2d45; margin-bottom:4px;">
+                        Invest<span style="color:#3f9dd4;">.Data</span>
+                    </h2>
+                    <p style="font-size:13px; color:#555555; margin:0;">
+                        Investment and Policy Trends and Insights
+                    </p>
+                </div>
+                <p style="font-size:13px; color:#333; text-align:center; margin-bottom:16px;">
+                    🔒 This tool is for <b>World Bank Group internal use only</b>.<br>
+                    Please enter the access password to continue.
+                </p>
+            """ + error_html),
+            ui.input_password("pwd_input", "Password"),
+            title="",
+            easy_close=False,
+            footer=ui.input_action_button("btn_login", "Enter", class_="btn-primary"),
+        )
+
+    # Main app content: nothing is sent to the browser until the user is authenticated
+    @render.ui
+    def main_content():
+        if APP_PASSWORD and not authenticated():
+            return ui.div()
+        return ui.navset_tab(
+            # Landing Site
+            landing_ui(),
+            # Investment Highlights
+            highlights_ui(),
+            # Foreign Capital
+            foreign_capital_ui(),
+            # FDI Trends
+            fdi_trends_ui(),
+            # Bilateral Trends
+            bilateral_trends_ui(),
+            # Business Environment
+            business_environment_ui(),
+            # Linkages
+            linkages_ui(),
+            # WB SME & Enterprise Development, Policy and Regulations Hub
+            ui.nav_panel(
+                "WKPTS Hub",
+                ui.HTML("<p>Redirecting…</p>"),  # never really shown
+                value="wb_hub",
+            ),
+            # About Panel
+            about_ui(),
+            id="main_tabs",
+        )
+
+    ##################################
+    ## 1. Tutorial Modal
     def tutorial_step():
         return ui.modal(
             ui.HTML("""
@@ -387,10 +438,24 @@ def server(input: Inputs, output: Outputs, session: Session):
             footer=ui.input_action_button("btn_close_tutorial", "Access Invest.Data", class_="btn-primary")
         )
 
-    # Show tutorial when app loads
+    # On load: show login if a password is set, otherwise go straight to the tutorial
     @reactive.effect
-    def _show_tutorial():
-        ui.modal_show(tutorial_step())
+    def _on_load():
+        if APP_PASSWORD:
+            ui.modal_show(login_modal(error=False))
+        else:
+            ui.modal_show(tutorial_step())
+
+    # Check password; show tutorial if correct, re-show login with error if wrong
+    @reactive.effect
+    @reactive.event(input.btn_login)
+    def _check_password():
+        if input.pwd_input() == APP_PASSWORD:
+            authenticated.set(True)
+            ui.modal_remove()
+            ui.modal_show(tutorial_step())
+        else:
+            ui.modal_show(login_modal(error=True))
 
     # Close tutorial when button clicked
     @reactive.effect
