@@ -322,7 +322,7 @@ def server(input: Inputs, output: Outputs, session: Session):
                 </div>
                 <p style="font-size:13px; color:#333; text-align:center; margin-bottom:16px;">
                     🔒 This tool is for <b>World Bank Group internal use only</b>.<br>
-                    Please enter the access password to continue.
+                    Please enter the access password and then press "Enter" to continue.
                 </p>
             """ + error_html),
             ui.input_password("pwd_input", "Password"),
